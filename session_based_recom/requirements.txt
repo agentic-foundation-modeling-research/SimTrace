@@ -1,0 +1,15 @@
+# Shared dependencies for the session-based recommenders (NARM, RESTC, RAIN,
+# DIMO, MMSBR).
+# Install PyTorch matching your CUDA build first, e.g. on the GPU server:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+# then: pip install -r requirements.txt
+torch>=1.10
+numpy
+scipy
+scikit-learn      # RAIN: roc_auc_score; preprocess_mm.py: PCA
+tqdm
+pyyaml            # preprocess.py tstr --config (TSTR data config)
+# --- only needed for the multimodal data prep (preprocess/preprocess_mm.py) ---
+torchvision       # GoogLeNet image features (MMSBR)
+transformers      # BERT text features + CLIP pseudo-modalities (DIMO, MMSBR)
+pillow            # image loading

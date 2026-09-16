@@ -1,0 +1,47 @@
+# Hyperparameter sweep spec for user_model.sft.sweep.
+#
+# Each entry under `runs` is one training run. The driver merges `base_config`
+# with that run's `overrides`, pins output_dir / wandb_run_name to the run name,
+# then launches `accelerate launch -m user_model.sft.trainer` sequentially and
+# aggregates a ranked summary (summary.csv / summary.json) under output_root.
+#
+# `overrides` accepts any key TrainConfig understands, e.g.:
+#   learning_rate, lr_scheduler_type, warmup_ratio
+#   lora_r, lora_alpha, lora_dropout, finetuning_type
+#   num_train_epochs, per_device_train_batch_size, gradient_accumulation_steps
+#   max_length, max_steps, num_eval_generations, seed
+#
+# Run it:
+#   python -m user_model.sft.sweep --dry-run          # preview, launch nothing
+#   CUDA_VISIBLE_DEVICES=0,1 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python -m user_model.sft.sweep                     # run the whole sweep
+#   python -m user_model.sft.sweep --only lr1e4_r32    # run a subset
+
+base_config: user_model/sft/config.yaml
+output_root: /ckpt/sft
+
+launch:
+  accelerate_config: user_model/sft/accelerate_config.yaml
+  cuda_visible_devices: "0,1"
+  env:
+    PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+    # Cluster all runs of this sweep under one wandb group (runs keep distinct
+    # names via wandb_run_name). HF's WandbCallback reads WANDB_RUN_GROUP.
+    WANDB_RUN_GROUP: user_model_qwen3.5_sweep_5
+
+runs:
+  - name: lr2e4_lora
+    overrides: {learning_rate: 2.0e-4, lora_r: 16, lora_alpha: 32}
+
+  - name: lr2e5_full
+    overrides: {learning_rate: 2.0e-5, finetuning_type: full}
+
+  - name: lr1e5_full
+    overrides: {learning_rate: 1.0e-5, finetuning_type: full}
+
+  - name: lr2e6_full
+    overrides: {learning_rate: 2.0e-6, finetuning_type: full}
+
+  # Smoke run: 3 steps, tiny gen-eval. Handy for validating the driver end-to-end.
+  # python -m user_model.sft.sweep --only smoke
+  # - name: smoke
+  #   overrides: {max_steps: 3, num_eval_generations: 4, save_steps: 3, eval_steps: 3}

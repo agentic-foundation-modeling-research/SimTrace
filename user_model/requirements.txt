@@ -1,0 +1,27 @@
+# Pip dependencies for the user_model/sft training stack.
+# Installed separately from the main project so the buyer-sim-gen runtime stays
+# light. Versions pinned to the TRL release that supports SFTConfig(
+#   assistant_only_loss=True, max_length=..., processing_class=...).
+#
+#   pip install -r user_model/sft/requirements.txt
+#
+# CUDA build for torch/bitsandbytes assumed; adjust extra-index-url for your CUDA.
+
+torch==2.11.0 --index-url https://download.pytorch.org/whl/cu130
+torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu130
+torchaudio==2.11.0 --index-url https://download.pytorch.org/whl/cu130
+vllm==0.23.0
+transformers==5.15.0
+trl==1.7.0
+peft==0.19.1
+accelerate>=0.34.0
+datasets>=3.0.0
+bitsandbytes==0.49.2
+pyyaml>=6.0
+deepspeed
+liger-kernel==0.8.0
+tqdm
+litellm
+wandb
+scikit-learn
+deepspeed

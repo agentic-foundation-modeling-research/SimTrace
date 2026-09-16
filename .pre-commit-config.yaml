@@ -1,0 +1,11 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.12
+    hooks:
+      - id: ruff-format
+        name: ruff-format
+        description: Format code with ruff-formatter
+      - id: ruff
+        name: ruff
+        description: Lint and fix code with ruff
+        args: [--fix]

@@ -1,0 +1,118 @@
+# ============================================================================
+# EXPERIMENTS CONFIG
+# ============================================================================
+# Single entrypoint:  python -m src.data_gen.main.run_experiments
+#
+# Each experiment carries its OWN llm + simulation_config + run config + eval.
+# These override the config-wide defaults below, which in turn override the
+# general settings in conf/base.yaml (environment, browser, logging, hydra).
+#
+# Results land in:  <output_dir>/<agent_mode>/<auto-config-slug>/runs/<timestamp>/
+# with a config_used.yaml per folder + a line per run in <output_dir>/runs_index.jsonl
+
+output_dir: ./results    # shared results root for all experiments
+
+# ---- config-wide defaults (each experiment may override any of these) ------
+llm:
+  base_url: <llm_base_url>  # the base URL for the LLM API if provided; otherwise, the default provider URL is used
+  provider: openai  # the LLM provider to use, e.g., "openai", "gemini", "anthropic", etc.
+  model: <llm_model>  # the primary chat model identifier to use for the
+  embed_model: text-embedding-3-small
+  computer_use_model: claude-sonnet-4-20250514
+  enable_thinking: null
+  max_tokens: 64000
+  request_timeout: 120                    # Per-LLM-call timeout (s); raise per-experiment for slow reasoning models (gpt-5).
+  # Optional dedicated model for the traj_cond verifier (both pre verify() and post post_verify()).
+  # Only override what differs; all unset fields inherit from the llm block above.
+  # Omit this block entirely to make the verifier reuse the main model (default).
+  verifier_llm:
+    model: "gpt-5.4"                      # verifier-only model
+    # provider: "openai"                         # optional override
+    # enable_thinking: "high"                    # optional override
+    # base_url / request_timeout / max_tokens also overridable
+
+run:                                    # defaults shared by action-mode experiments
+  concurrency: 10
+  num_runs: 1                             # repeat each setting N times -> <slug>/1/, <slug>/2/, ...; results pooled into <slug>/eval_results.json
+  input_filepath: <path/to/sessions.jsonl> # the output file from data collection
+  start_url: <given_website_url/simulated_env_url>
+
+eval:  # this is for fidelity evaluation.
+  enabled: true
+  real_data: <path/to/sessions_raw.csv>  # the raw sessions data from data collection
+  product_catalog: <path/to/products.csv>  # the products data from data collection
+  post_verify_threshold: 0.8                # exclude runs whose mean post_verify score is below this
+  llm:                                    # model used for rationale generation in eval
+    base_url: <llm_base_url>  # the base URL for the LLM API if provided; otherwise, the default provider URL is used
+    model: "googlevertexai-global:gemini-3-flash-preview"
+
+# ---- the experiments, run sequentially ------------------------------------
+experiments:
+  - name: persona
+    llm:
+      model: "openai:gpt-5.6-sol" # googlevertexai-global:gemini-3-flash-preview
+    simulation_config:
+      agent_mode: persona
+    run:
+      sessions_index: 0-9
+      # num_runs: 2
+
+  - name: traj
+    llm:
+      model: "openai:gpt-5.6-sol"
+    simulation_config:
+      agent_mode: traj_cond
+      traj_cond:
+        persona: false   # inject persona text into action/plan/rethink prompts
+        act: "single"  # choice lists: "multi", "single"
+        plan: false
+        verifier: "no"  # choice lists: "pre", "post", "no"
+        feedback: false
+    run:
+      sessions_index: 0-9
+      # num_runs: 2
+
+  - name: traj_persona
+    llm:
+      model: "openai:gpt-5.6-sol"
+    simulation_config:
+      agent_mode: traj_cond
+      traj_cond:
+        persona: true   # inject persona text into action/plan/rethink prompts
+        act: "single"  # choice lists: "multi", "single"
+        plan: false
+        verifier: "no"  # choice lists: "pre", "post", "no"
+        feedback: false
+    run:
+      sessions_index: 0-9
+      # num_runs: 2
+
+  - name: uxagent
+    llm:
+      model: "openai:gpt-5.6-sol"
+    simulation_config:
+      agent_mode: traj_cond
+      traj_cond:
+        persona: true   # inject persona text into action/plan/rethink prompts
+        act: "single"  # choice lists: "multi", "single"
+        plan: true
+        verifier: "no"  # choice lists: "pre", "post", "no"
+        feedback: true
+    run:
+      sessions_index: 0-9
+      # num_runs: 2
+
+  - name: simTrace
+    llm:
+      model: "googlevertexai-global:gemini-3-flash-preview"
+    simulation_config:
+      agent_mode: traj_cond
+      traj_cond:
+        persona: true   # inject persona text into action/plan/rethink prompts
+        act: "single"  # choice lists: "multi", "single"
+        plan: true
+        verifier: "pre"  # choice lists: "pre", "post", "no"
+        feedback: true
+    run:
+      sessions_index: 0-9
+      # num_runs: 2   # run this setting 2x; pooled result lands in <slug>/eval_results.json

@@ -1,0 +1,118 @@
+# Offline turn-level RL for the Qwen3.5 next-action model.
+# No browser/environment rollout is performed: each prompt is the recorded
+# message prefix immediately before one ground-truth assistant action.
+
+# --- Turn-level data ---
+# data_prep.py writes the final synthetic-only turn data here locally.
+train_data_path: data/rl/opera-50/train.jsonl
+val_data_path: null
+dataset_hub_id: null
+
+# --- SFT starting policy ---
+# Qwen3.5 is a unified multimodal architecture even though this task supplies
+# text-only prompts. The trainer loads it with AutoProcessor and
+# AutoModelForMultimodalLM, matching user_model/sft/trainer.py.
+# Full SFT checkpoint: set model_name_or_path to its directory. "lora" (the
+# memory-efficient default) then adds a new GRPO adapter; "full" updates it all.
+# LoRA SFT checkpoint: keep the base model here, use "lora", and set the adapter;
+# GRPO will continue that adapter with trainable weights.
+model_name_or_path: ckpt/sft/synth
+sft_adapter_path: null
+finetuning_type: full
+use_4bit: false
+bnb_4bit_compute_dtype: bfloat16
+bnb_4bit_quant_type: nf4
+bnb_double_quant: true
+attn_implementation: sdpa
+
+# Fresh LoRA settings. Ignored when sft_adapter_path is set or mode is full.
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# --- Offline GRPO candidate sampling ---
+num_generations: 4
+# Four training processes consume four responses per microstep. Generate two
+# complete prompt groups together and consume them over two global microsteps.
+# With 32-step accumulation, each optimizer update contains 32 complete groups.
+generation_batch_size: 8
+# Hard, tokenizer-measured cap applied before TRL. TRL 1.7 does not support
+# GRPOConfig.max_prompt_length, so this is not passed through to GRPOConfig.
+prompt_max_tokens: 32000
+# Rank 0 materializes the capped prompts once as Arrow; all DDP ranks and later
+# launches reuse it. null stores it under output_dir/prompt-cap-cache. Set a
+# shared absolute directory to reuse the same cache across different runs.
+cache_truncated_prompts: true
+prompt_cache_dir: null
+max_completion_length: 128
+temperature: 1.0
+top_p: 1.0
+beta: 0.04
+use_vllm: true
+# Run rollouts on a separate `trl vllm-serve` process. Before the first
+# generation after each optimizer update, TRL pushes the current full policy
+# weights to this server over the weight-sync group port.
+vllm_mode: server
+vllm_server_base_url: null
+vllm_server_host: 127.0.0.1
+vllm_server_port: 8000
+vllm_server_timeout: 600.0
+vllm_group_port: 51216
+
+# --- Advantage and reward formula ---
+# Can also be overridden at launch with:
+#   --advantage-formula gdpo
+#   --advantage-formula constraint-aware
+#
+# gdpo: TRL normalizes R_format, R_action, and R_target separately within each
+# generation group, sums them, then normalizes the result across the generation
+# batch. 
+# constraint-aware uses:
+#   R = -w_format(1-R_format)
+#       + R_format * (w_action*R_action + w_target*R_target)
+advantage_formula: gdpo # gdpo # constraint-aware
+reward:
+  format_weight: 1.0
+  action_weight: 0.5
+  target_weight: 0.5
+
+# --- Optimization ---
+output_dir: ckpt/sft/real-plus-synth-rl
+num_train_epochs: 15
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 32
+learning_rate: 1.0e-6
+lr_scheduler_type: constant_with_warmup
+warmup_ratio: 0.03
+bf16: true
+gradient_checkpointing: true
+ddp_find_unused_parameters: true  # text-only batches leave vision parameters unused
+# ZeRO-3 shards this optimizer across the four training GPUs. Keeping it on GPU
+# avoids requiring DeepSpeed's separately compiled CPUAdam extension.
+optim: adamw_torch
+dataloader_num_workers: 4
+# Each generation point contains two 4-response groups. With accumulation 32,
+# the workers consume each generation batch over 2 microsteps; 128 responses
+# (32 full groups) contribute to every optimizer update.
+logging_steps: 1
+save_steps: 5
+save_total_limit: 3
+# Keep the per-response completion/component data in the W&B Tables section.
+log_completions: true
+# Do not print TRL's large Rich completion table or the per-response group
+# diagnostics to stdout; both are redundant with the W&B completion table.
+print_completion_tables: false
+log_group_diagnostics: false
+report_to: wandb
+wandb_project: buyer-sim-gen
+run_name: qwen3.5-grpo-opera50-gdpo
+seed: 42
+max_steps: -1

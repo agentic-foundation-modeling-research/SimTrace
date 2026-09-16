@@ -1,0 +1,18 @@
+# Build and optionally publish multiple stores into one Hugging Face dataset.
+output_dir: data/hf_publish
+repo_id: <huggingface_repo_id>/buyer-sim-complete-v4
+push_to_hub: true
+private: true
+
+# Applied globally after combining stores.
+sample: null
+post_verify_threshold: 0.8
+test_ratio: 0.1
+seed: 42
+split_by: user
+
+stores:
+  - store_id: "store_1"
+    raw_data: output
+    run_dir:
+      - results/traj_cond/<slug>/1

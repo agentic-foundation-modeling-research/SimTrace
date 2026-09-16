@@ -1,0 +1,143 @@
+# ============================================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================================
+# Web environment including browser, proxy, and script paths
+environment:
+  # Recording configuration
+  recording:
+    enabled: false                     # Enable screen recording using QuickRecorder
+
+  init_script_path: "src/data_gen/executor/parser/initscript.js"   # Path to JavaScript init script
+  parser_script_path: "src/data_gen/executor/parser/parser.js"     # Path to JavaScript parser script
+
+  # Re-runs parser.js before each click/type/hover/select to keep parser-semantic-id attributes current.
+  # Leave false for static sites — saves 100ms–2s per action.
+  refresh_dom_tags_per_action: false
+
+  # Browser configuration
+  # Maps directly to Playwright's launch and context options
+  # Add any Playwright option by following their API structure:
+  # https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch
+  # https://playwright.dev/python/docs/api/class-browser#browser-new-context
+  browser:
+    # Launch options
+    launch_options:
+      headless: ${oc.decode:${oc.env:HEADLESS,true}}  # default = true
+      args:                           # Performance optimization args
+        - "--disable-autofill-keyboard-accessory-view"
+        - "--disable-autofill-profile-update"
+        - "--disable-autofill"
+        - "--disable-extensions"
+        - "--disable-background-networking"
+        - "--safebrowsing-disable-auto-update"
+        - "--disable-component-update"
+        - "--disable-default-apps"
+        - "--no-first-run"
+        - "--no-default-browser-check"
+        - "--metrics-recording-only"
+        - "--disable-sync"
+        - "--disable-translate"
+        - "--disable-client-side-phishing-detection"
+        - "--disable-domain-reliability"
+        - "--disable-crash-reporter"
+        - "--password-store=basic"      # Disable macOS Keychain encryption so cookies are portable across sessions
+
+    # Context options
+    context_options:
+      viewport:
+        width: 1024                    # Browser viewport width in pixels
+        height: 768                   # Browser viewport height in pixels
+      device_scale_factor: 1
+      user_agent: null                 # User agent string to use
+      extra_http_headers: null         # Will be set for host rewrites if needed
+      bypass_csp: true
+
+    # Browser cache and data directories
+    cache_dir: "./browser/cache"       # Persistent network cache directory
+    user_data_dir: "./browser/session" # User data directory (cookies, session data)
+
+    # Timeout configurations (in milliseconds)
+    timeouts:
+      default: 10000        # Timeout for locator actions (click, type, etc.)
+      page_load_domcontent: 10000 # Timeout for DOM content loaded
+      page_load_networkidle: 3000 # Timeout for network idle (longer for full page loads)
+      element_wait: 2000          # Timeout for waiting for specific elements
+      custom_network_idle: 3000    # Time to wait for no network activity before considering idle
+      container_health_check: 3000 # Timeout for container health checks (in milliseconds)
+      parser_eval: 15000          # Timeout for running parser.js inside the page; falls back to raw HTML on timeout
+      dom_tag_refresh: 5000       # Timeout for the pre-action parser refresh; skipped silently on timeout
+
+    # Sleep configuration (in seconds)
+    sleep_after_action: 2      # Sleep time after each action (helps with page stability)
+
+    wait_for_login: false       # Wait for user to log in before starting simulation
+
+  # Browser tracing for debugging and analysis
+  tracing:
+    enabled: false                           # Enable Playwright tracing
+    output_path: "trace.zip"                  # File path for trace output
+    screenshots: true                        # Include screenshots in traces
+    snapshots: true                          # Include DOM snapshots in traces
+    sources: true                            # Include source code in traces
+
+# ============================================================================
+# LLM CONFIGURATION
+# ============================================================================
+llm:
+  provider: "openai"                              
+  model: "googlevertexai-global:gemini-3-flash-preview"                 # Primary chat model identifier
+  # provider: "openai"                            # Provider prefix: "openai", "gemini", "anthropic", etc.
+  # model: "gpt-5"                                # Primary chat model identifier
+  embed_model: "text-embedding-3-small"           # Embedding model identifier
+  computer_use_model: "claude-sonnet-4-20250514"  # Model for Anthropic computer-use tool
+  enable_thinking: null                           # null=off; true=provider default; "low"/"medium"/"high" for openai/gemini; int for anthropic budget_tokens
+  max_tokens: 64000                               # Max completion tokens per LLM call. OpenAI providers auto-clamp to 16000 (gpt-4o/gpt-5-mini cap is 16384). Tune per model.
+  request_timeout: 600                            # Per-LLM-call timeout (s), passed natively to litellm. Raise for slow reasoning models (gpt-5); fast models finish well under this.
+  # Optional dedicated model for the traj_cond verifier (both pre verify() and post post_verify()).
+  # verifier_llm:
+  #   model: "openai:gpt-5.4"                      # verifier-only model
+  #   # provider: "openai"                         # optional override
+  #   # enable_thinking: "high"                    # optional override
+  #   # base_url / request_timeout / max_tokens also overridable
+
+# ============================================================================
+# EVALUATION CONFIGURATION
+# ============================================================================
+# Consumed by direct `python -m eval.run_eval` runs to configure the LLM used
+# for rationale generation in semantic-level fidelity.
+eval:
+  llm:                                    # model used for rationale generation in eval
+    model: "gpt-5.4"
+
+# ============================================================================
+# SIMULATION SETTINGS
+# ============================================================================
+simulation_config:
+  output_dir: ./results_sim_shop
+  # Supported agent_mode values:
+  #   traj_cond           - trajectory + intent with optional persona/plan/verifier/feedback
+  #   persona             - zero-shot persona + intent (no memory, no trajectory)
+  agent_mode: traj_cond
+  traj_cond:
+    persona: false   # inject persona text into action/plan/rethink prompts
+    act: "single"  # choice lists: "multi", "single"
+    plan: true
+    verifier: "pre"  # choice lists: "pre", "post", "no"
+    feedback: true
+
+# ============================================================================
+# GENERAL SETTINGS
+# ============================================================================
+debug: false           # Enable debug logging and detailed output
+log_level: DEBUG        # Logging level: DEBUG, INFO, WARNING, ERROR
+
+
+# ============================================================================
+# HYDRA SETTINGS
+# ============================================================================
+# Controls output directory and job behavior
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d_%H-%M-%S}  # Timestamped output directory
+  job:
+    chdir: false       # Don't change working directory during execution

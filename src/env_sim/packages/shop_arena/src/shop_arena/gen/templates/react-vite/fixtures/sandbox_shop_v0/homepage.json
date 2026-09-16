@@ -1,0 +1,20 @@
+{
+  "hero": {
+    "id": 900000000001,
+    "src": "products/agoracage-skin-and-coat-chicken-with-grains-12lb-1.jpg",
+    "alt": null,
+    "width": 2400,
+    "height": 1200,
+    "position": 1
+  },
+  "banners": [
+    {
+      "id": 900000000002,
+      "src": "products/agoracage-skin-and-coat-chicken-with-grains-12lb-2.svg",
+      "alt": null,
+      "width": 1600,
+      "height": 600,
+      "position": 1
+    }
+  ]
+}

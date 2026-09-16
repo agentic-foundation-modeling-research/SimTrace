@@ -1,0 +1,95 @@
+# SFT training configuration for buyer simulation (Qwen3.5-9B)
+
+# --- Data ---
+# Local directory produced by:
+# python -m user_model.sft.data_prep --synthetic_repo <huggingface_repo_id>/buyer-sim-50 \
+#   --output_dir data/sft/buyer-sim-50
+train_datasets:
+  - data/sft/buyer-sim-250
+eval_dataset: <huggingface_repo_id>/opera-50-test # strict: its validation split drives checkpoint selection
+val_data_path: null           # use only for an explicit standalone local validation JSONL
+
+# Train on several sources at once (each a HF Hub id, a local dir of sft_*.jsonl, or a
+# .jsonl file); they are concatenated and shuffled. This is overridable per-run with
+# --train_datasets / --eval_dataset. eval_dataset picks the one
+# source whose validation split drives eval / early stopping / best-checkpoint selection
+# (defaults to the first train_datasets entry), so mixed runs stay comparable.
+# Example mixed run:
+# train_datasets: [data/sft/buyer-sim-50, <huggingface_repo_id>/opera_50]
+# eval_dataset: <huggingface_repo_id>/opera_50
+# The trainer never carves validation rows out of training data. If eval_dataset is set,
+# its validation split must exist and be non-empty or training fails loudly.
+
+# --- Model ---
+model_name_or_path: Qwen/Qwen3.5-9B  # Qwen/Qwen3.5-9B Qwen/Qwen3.5-9B Qwen/Qwen3-14B
+use_4bit: true                # QLoRA 4-bit NF4 quantization
+bnb_4bit_compute_dtype: bfloat16
+bnb_4bit_quant_type: nf4
+bnb_double_quant: true
+
+# --- Fine-tuning mode ---
+finetuning_type: full         # "lora" or "full"; "full" trains all params and forces use_4bit off (needs much more GPU memory, typically DeepSpeed/multi-GPU)
+
+# --- LoRA (ignored when finetuning_type: full) ---
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# --- Sequence length ---
+max_length: 32768             # 32768 context window; sessions truncated if longer; 262144 for qwen3.5
+
+# --- Training ---
+output_dir: user_model/sft/checkpoints
+assistant_only_loss: true
+num_train_epochs: 3
+per_device_train_batch_size: 1  # 2
+per_device_eval_batch_size: 1  # 2
+gradient_accumulation_steps: 8
+learning_rate: 2.0e-5
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+bf16: true
+gradient_checkpointing: true
+ddp_find_unused_parameters: true  # needed with gradient checkpointing when DDP sees conditional/unused params
+optim: paged_adamw_8bit
+dataloader_num_workers: 4
+remove_unused_columns: false
+attn_implementation: sdpa
+
+# --- Logging / checkpointing ---
+save_strategy: steps
+save_steps: 5
+save_total_limit: 3            # keep best + 2 most recent checkpoints (3 total)
+eval_strategy: steps
+eval_steps: 5
+logging_steps: 5
+load_best_model_at_end: true
+metric_for_best_model: eval_exact_match_acc  # eval_loss, eval_action_f1, eval_action_acc, eval_exact_match_acc
+greater_is_better: true
+report_to: wandb               # set to "wandb" or "tensorboard" as needed
+
+# --- Early stopping ---
+early_stopping: true           # stop when metric_for_best_model stops improving
+early_stopping_patience: 3     # number of evals with no improvement before stopping
+early_stopping_threshold: 0.0
+
+# --- Generation eval ---
+num_eval_generations: -1      # null / -1 = full validation set (lower-variance metrics, slower eval). A bounded sample keeps eval cheap.
+eval_max_new_tokens: 256      # 256 truncated ~4% of turns mid-JSON, which score as a miss and pollute macro action_f1
+eval_gen_batch_size: 4        # number of assistant turns generated together per model.generate call (batched, left-padded)
+eval_temperature: 0.0          # decoding temperature for gen-eval; 0.0 = greedy (deterministic), > 0 = sampling
+
+# --- Wandb ---
+wandb_project: buyer-sim-gen
+wandb_run_name: null           # auto-generated if null
+
+# --- Misc ---
+seed: 42

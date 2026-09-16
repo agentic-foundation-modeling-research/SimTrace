@@ -1,0 +1,7 @@
+# Final Qwen free-generation experiment
+pyyaml>=6.0
+torch>=2.6
+accelerate>=1.2
+peft>=0.14
+bitsandbytes>=0.45
+transformers @ git+https://github.com/huggingface/transformers.git

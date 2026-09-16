@@ -1,0 +1,17 @@
+# Raw datasets (large)
+data/
+
+# Generated standard-format data and method symlinks
+data_processed*/
+methods/*/datasets/*/
+
+# Training artifacts
+results/
+methods/*/output_dir/
+methods/**/latest_checkpoint.pth.tar
+methods/**/*.pth.tar
+methods/**/*.tar
+methods/**/*.log
+__pycache__/
+*.pyc
+.DS_Store

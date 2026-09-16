@@ -1,0 +1,15 @@
+# Train-Synthetic-Test-Real (TSTR) data config.
+#
+# Replace <data_collection_output> and <data_gen_output> with the directory produced by 
+# the data_collection (e.g. output) and data_gen step (e.g. results/traj_cond/<config-slug>/1). 
+
+view_actions: [detail]
+min_freq: 3
+min_overlap: 0.05
+
+shops:
+  - name: example_store
+    store_id: store_001
+    real: <data_collection_output>/sessions_raw.csv
+    products: <data_collection_output>/products.csv
+    synth: <data_gen_output>/runs/

@@ -1,0 +1,27 @@
+# Accelerate/ZeRO-3 configuration for four-GPU RL training.
+compute_environment: LOCAL_MACHINE
+distributed_type: DEEPSPEED
+downcast_bf16: 'no'
+gpu_ids: all
+machine_rank: 0
+main_training_function: main
+mixed_precision: bf16
+num_machines: 1
+num_processes: 4
+rdzv_backend: static
+same_network: true
+use_cpu: false
+
+# Full-parameter GRPO keeps both a trainable policy and, while beta is nonzero,
+# a frozen reference policy. ZeRO-3 shards both across the four training GPUs.
+# Keep optimizer state on GPU so DeepSpeed does not require its separately
+# compiled CPUAdam extension. ZeRO-3 still shards optimizer state across all
+# four training GPUs.
+deepspeed_config:
+  gradient_accumulation_steps: 32
+  gradient_clipping: 1.0
+  offload_optimizer_device: none
+  offload_param_device: none
+  zero3_init_flag: true
+  zero3_save_16bit_model: true
+  zero_stage: 3
